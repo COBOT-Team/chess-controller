@@ -24,7 +24,13 @@ pid_t _engine_pid;  ///< The process ID of the chess engine process.
 int _pipe_read;   ///< The file descriptor for the read end of the pipe.
 int _pipe_write;  ///< The file descriptor for the write end of the pipe.
 
-std::string _buffer;  ///< A buffer for storing unprocessed messages.
+string _buffer;  ///< A buffer for storing unprocessed messages.
+
+string engine_name = "";     ///< The name of the chess engine.
+string engine_authors = "";  ///< The authors of the chess engine.
+string last_best_move = "";  ///< The last best move returned by the chess engine.
+string to_ponder = "";       ///< The move to ponder, if any.
+vector<Option> options;      ///< The options that can be set.
 
 //                                                                                                //
 // ===================================== Private Functions ====================================== //
@@ -46,8 +52,8 @@ void _signal_handler(int)
 }
 
 /**
- * Tries to receive data from the chess engine process. If data is received, it will be appended
- * to the buffer. This function will not process messages from the buffer; use
+ * Tries to receive data from the chess engine process. If data is received, it will be appended to
+ * the buffer. This function will not process messages from the buffer; use
  * `_try_process_from_buffer()` for that.
  *
  * @return Whether data was received.
@@ -81,7 +87,8 @@ bool _try_recv()
     }
   } while (chunk_size == BUFFER_SIZE);  // Stop when we read less than the full chunk size.
 
-  return true;  // If we got here, we read at least one byte. No need to check `num_bytes_read`.
+  // If we got here, we read at least one byte. No need to check `num_bytes_read`.
+  return true;
 }
 
 /**
@@ -132,9 +139,9 @@ void _write_to_engine(const std::string& message)
  * timeout expires, the engine process will be terminated and an exception will be thrown.
  *
  * A message is considered to match if it begins with `expected`. This means that expecting "id
- * name" will match the message "id name Stockfish 12", but not "id author <...>". We match this
- * way because we generally only care about the first word of a message. If this becomes a problem
- * in the future, regular expressions could be used instead.
+ * name" will match the message "id name Stockfish 12", but not "id author <...>". We match this way
+ * because we generally only care about the first word of a message. If this becomes a problem in
+ * the future, regular expressions could be used instead.
  *
  * @param[in] expected The expected message.
  * @param[in] timeout The maximum number of milliseconds to wait for the message before giving up.
@@ -184,18 +191,18 @@ void init(char* const engine_path, char* const argv[])
   if (_initialized) throw runtime_error("UCI Interface already initialized.");
 
   // Create pipes for communication with the chess engine process.
-  int pipe_from_engine[2];     // chess engine -> UCI Interface
-  int pipe_from_interface[2];  // UCI Interface -> chess engine
-  pipe(pipe_from_engine);
-  pipe(pipe_from_interface);
+  int pipe_to_interface[2];  // chess engine -> UCI Interface
+  int pipe_to_engine[2];     // UCI Interface -> chess engine
+  pipe(pipe_to_interface);
+  pipe(pipe_to_engine);
 
   // Register the signal handler for `SIGCHLD`.
   if (signal(SIGCHLD, _signal_handler) == SIG_ERR)
     throw runtime_error("Failed to register signal handler.");
 
   // Fork the process. This will create two copies of this process with two different values for
-  // `engine_pid`. In the parent process, `engine_pid` will contain the PID for the child
-  // process. In the child process, it will be `0`.
+  // `engine_pid`. In the parent process, `engine_pid` will contain the PID for the child process.
+  // In the child process, it will be `0`.
   int engine_pid = fork();
   if (engine_pid == -1) throw runtime_error("Failed to fork process: " + to_string(errno));
 
@@ -205,13 +212,13 @@ void init(char* const engine_path, char* const argv[])
 
   if (engine_pid == 0) {
     // Close the interface ends of the pipes.
-    close(pipe_from_engine[0]);
-    close(pipe_from_interface[1]);
+    close(pipe_to_interface[0]);
+    close(pipe_to_engine[1]);
 
     // Redirect STDIN and STDOUT to the remaining pipe ends.
-    if (dup2(pipe_from_interface[0], STDIN_FILENO) == -1)
+    if (dup2(pipe_to_engine[0], STDIN_FILENO) == -1)
       throw runtime_error("Failed to redirect STDIN: " + to_string(errno));
-    if (dup2(pipe_from_engine[1], STDOUT_FILENO) == -1)
+    if (dup2(pipe_to_interface[1], STDOUT_FILENO) == -1)
       throw runtime_error("Failed to redirect STDOUT: " + to_string(errno));
 
     // Execute the chess engine. This will replace the current process with the chess engine.
@@ -227,12 +234,12 @@ void init(char* const engine_path, char* const argv[])
    */
 
   _engine_pid = engine_pid;
-  _pipe_read = pipe_from_engine[0];
-  _pipe_write = pipe_from_interface[1];
+  _pipe_read = pipe_to_interface[0];
+  _pipe_write = pipe_to_engine[1];
 
   // Close the engine ends of the pipes.
-  close(pipe_from_engine[1]);
-  close(pipe_from_interface[0]);
+  close(pipe_to_interface[1]);
+  close(pipe_to_engine[0]);
 
   // Initialize the chess engine.
   _write_to_engine("uci");
