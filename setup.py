@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = "chess-controller"
+package_name = "chess_controller"
 
 setup(
     name=package_name,
@@ -18,6 +18,6 @@ setup(
     license="TODO: License declaration",
     tests_require=["pytest"],
     entry_points={
-        "console_scripts": ["chess_controller = chess-controller.chess_controller:main"],
+        "console_scripts": ["chess_controller = chess_controller.chess_controller:main"],
     },
 )
