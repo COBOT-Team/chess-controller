@@ -19,7 +19,7 @@ using namespace std;
 
 bool _initialized;  ///< Whether the interface has been initialized.
 
-pid_t _engine_pid;  ///< The process ID of the chess engine process.
+pid_t _engine_pid;  ///< The process ID of the chess engine.
 
 int _pipe_read;   ///< The file descriptor for the read end of the pipe.
 int _pipe_write;  ///< The file descriptor for the write end of the pipe.
@@ -110,7 +110,20 @@ std::string _try_process_from_buffer()
   auto message = _buffer.substr(0, newline_pos);
   _buffer.erase(0, newline_pos + 1);
 
-  // TODO: process the message
+  // Split each word in the message into a vector.
+  vector<string> words;
+  size_t start = 0;
+  size_t end = 0;
+  while (end != string::npos) {
+    end = message.find(' ', start);
+    words.push_back(message.substr(start, end - start));
+    start = end + 1;
+  }
+
+  // Process the message. Each message type is handled by a different function that returns `true`
+  // if the message was processed successfully. We want to test each function in order until we
+  // find one that works, so we construct an array of function pointers and iterate over it.
+  static function<bool(vector<string>)> const process_functions[] = {};
 
   return message;
 }
