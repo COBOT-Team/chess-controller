@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        ".dockerignore": "plaintext",
-        "functional": "cpp",
-        "stdexcept": "cpp"
-    }
-}
