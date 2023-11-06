@@ -6,6 +6,7 @@
         "limitSymbolsToIncludedHeaders": false
       },
       "includePath": [
+        "/home/zachc/COBOT/cobot-ws/install/chess_msgs/include/**",
         "/home/zachc/COBOT/cobot-ws/install/ar3_hardware_interface/include/**",
         "/opt/ros/humble/include/**",
         "/home/zachc/COBOT/cobot-ws/src/ar3-hardware-interface/include/**",
