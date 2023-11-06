@@ -29,7 +29,7 @@ class ChessEngineActionServer(Node):
         self._game_config_sub = self.create_subscription(
             GameConfig,
             "game_configuration",
-            lambda cfg: setattr(self, "current_game_config", cfg),
+            lambda cfg: setattr(self, "_current_game_config", cfg),
             10,
         )
 
@@ -64,7 +64,7 @@ class ChessEngineActionServer(Node):
         """Accept or reject a client request to begin an action."""
         self.get_logger().info("Received goal request")
 
-        if self.current_game_config is None:
+        if self._current_game_config is None:
             self.get_logger().error(
                 "The `game_configuration` topic has not been published to yet"
             )
@@ -81,6 +81,7 @@ class ChessEngineActionServer(Node):
             self._goal_handle = goal_handle
 
         self.get_logger().info("Starting execution of goal")
+        goal_handle.execute()
 
     def cancel_callback(self, goal_handle):
         """Accept or reject a client request to cancel an action."""
@@ -95,18 +96,19 @@ class ChessEngineActionServer(Node):
 
     def execute_callback(self, goal_handle):
         """Execute the goal."""
-        if self._current_game_config is None:
+        game_config = self._current_game_config
+        if game_config is None:
             self.get_logger().error(
                 "Best move requested without any data from the `game_configuration` topic`"
             )
             goal_handle.abort()
+            return FindBestMove.Result()
 
-        game_config = self._current_game_config
-        board_fen = goal_handle.request.board
+        board_fen = goal_handle.request.board.board
         remaining_times = goal_handle.request.time
 
         board = chess.Board(board_fen)
-        limit = chess.Limit(
+        limit = chess.engine.Limit(
             white_clock=remaining_times.white_time_left / 1000,
             black_clock=remaining_times.black_time_left / 1000,
             white_inc=game_config.time_increment / 1000,
@@ -115,6 +117,7 @@ class ChessEngineActionServer(Node):
 
         # Analysis mode allows cancellation but not drawing or resigning
         if goal_handle.request.analysis_mode:
+            self.get_logger().info("Executing in analysis mode")
             analysis = self._engine.analysis(board, limit=limit)
             while True:
                 # Check if the goal has been aborted
@@ -136,9 +139,9 @@ class ChessEngineActionServer(Node):
                 # Send feedback to the client
                 for key, value in info.items():
                     feedback_result = FindBestMove.Feedback()
-                    feedback_result.timestamp = self.get_clock().now().to_msg()
-                    feedback_result.type = key
-                    feedback_result.value = value
+                    feedback_result.info.timestamp = self.get_clock().now().to_msg()
+                    feedback_result.info.type = key
+                    feedback_result.info.value = str(value)
                     goal_handle.publish_feedback(feedback_result)
 
             # Send the result to the client
@@ -151,26 +154,27 @@ class ChessEngineActionServer(Node):
                 self.get_logger().info("Found best move")
                 goal_handle.succeed()
                 result = FindBestMove.Result()
-                result.move = engine_move.uci()
-                result.draw = False
-                result.resign = False
+                result.move.move = engine_move.uci()
+                result.move.draw = False
+                result.move.resign = False
                 return result
 
         # Play mode allows drawing and resigning, but not cancellation
         else:
+            self.get_logger().info("Executing in play mode")
             engine_result = self._engine.play(board, limit=limit)
             result = FindBestMove.Result()
 
             if engine_result.draw_offered:
-                result.draw = True
-                result.resign = False
+                result.move.draw = True
+                result.move.resign = False
             elif engine_result.resigned:
-                result.draw = False
-                result.resign = True
+                result.move.draw = False
+                result.move.resign = True
             elif engine_result.move is not None:
-                result.draw = False
-                result.resign = False
-                result.move = engine_result.move.uci()
+                result.move.draw = False
+                result.move.resign = False
+                result.move.move = engine_result.move.uci()
             else:
                 self.get_logger().error("No move found")
                 goal_handle.abort()
