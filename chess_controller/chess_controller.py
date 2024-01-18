@@ -38,9 +38,7 @@ class ChessEngineActionServer(Node):
         self._goal_lock = threading.Lock()
 
         # Start the chess engine process
-        self._engine = chess.engine.SimpleEngine.popen_uci(
-            self.get_parameter("engine_path").value
-        )
+        self._engine = chess.engine.SimpleEngine.popen_uci(self.get_parameter("engine_path").value)
 
         # Create action server for finding the best move
         self._action_server = ActionServer(
@@ -65,9 +63,7 @@ class ChessEngineActionServer(Node):
         self.get_logger().info("Received goal request")
 
         if self._current_game_config is None:
-            self.get_logger().error(
-                "The `game_configuration` topic has not been published to yet"
-            )
+            self.get_logger().error("The `game_configuration` topic has not been published to yet")
             return GoalResponse.REJECT
 
         return GoalResponse.ACCEPT
@@ -104,7 +100,7 @@ class ChessEngineActionServer(Node):
             goal_handle.abort()
             return FindBestMove.Result()
 
-        board_fen = goal_handle.request.board.board
+        board_fen = goal_handle.request.fen.fen
         remaining_times = goal_handle.request.time
 
         board = chess.Board(board_fen)
