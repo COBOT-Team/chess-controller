@@ -28,7 +28,7 @@ class ChessEngineActionServer(Node):
         self._current_game_config = None
         self._game_config_sub = self.create_subscription(
             GameConfig,
-            "game_configuration",
+            "chess/game_config",
             lambda cfg: setattr(self, "_current_game_config", cfg),
             10,
         )
@@ -44,13 +44,15 @@ class ChessEngineActionServer(Node):
         self._action_server = ActionServer(
             self,
             FindBestMove,
-            "find_best_move",
+            "chess/find_best_move",
             execute_callback=self.execute_callback,
             goal_callback=self.goal_callback,
             handle_accepted_callback=self.handle_accepted_callback,
             cancel_callback=self.cancel_callback,
             callback_group=ReentrantCallbackGroup(),
         )
+
+        self.get_logger().info("Chess engine action server is up")
 
     def destroy(self):
         self._transport.close()
@@ -176,6 +178,7 @@ class ChessEngineActionServer(Node):
                 goal_handle.abort()
                 return FindBestMove.Result()
 
+            self.get_logger().info("Move found")
             goal_handle.succeed()
             return result
 
